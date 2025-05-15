@@ -29,7 +29,7 @@ function Profile() {
       setSelectedColor(userInfo.color);
     }
     if(userInfo.image){
-      setImage(`${HOST}/${userInfo.image}`);
+      setImage(`${userInfo.image}`);
     }
   },[userInfo])
   const validateProfile = () =>{
@@ -84,6 +84,7 @@ function Profile() {
       )
       if(response.status === 200 && response.data.image){
         setUserInfo({...userInfo,image:response.data.image});
+        console.log(response.data.image)
         toast.success("Image updated successfully.")
       }
     }

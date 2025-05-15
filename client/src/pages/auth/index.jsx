@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { isStrongPassword } from 'validator';
 import isEmail from 'validator/lib/isEmail';
 import { apiClient } from '@/lib/api-client';
-import { LOGIN_ROUTE, SIGNUP_ROUTE } from '@/utils/constants';
+import { GENERATE_OTP, LOGIN_ROUTE, SIGNUP_ROUTE, VERIFY_OTP } from '@/utils/constants';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store';
 
@@ -20,6 +20,9 @@ function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setconfirmPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isOtpVerified, setIsOtpVerified] = useState(false);
 
   const validateLogin = () => {
     if (!email.length) {
@@ -67,37 +70,99 @@ function Auth() {
 
   const handleLogin = async () => {
     if (validateLogin()) {
-      const response = await apiClient.post(
-        LOGIN_ROUTE,
-        { email, password, },
-        { withCredentials: true }
-      );
-      if (response.data.user.id) {
-        setUserInfo(response.data.user)
-        if (response.data.user.profileSetup)
-          navigate("/chat");
-        else
-          navigate("/profile");
+      try {
+        const response = await apiClient.post(
+          LOGIN_ROUTE,
+          { email, password, },
+          { withCredentials: true }
+        );
+
+        if (response.data.user.id) {
+          setUserInfo(response.data.user)
+          if (response.data.user.profileSetup)
+            navigate("/chat");
+          else
+            navigate("/profile");
+        }
+        console.log({ response });
       }
-      console.log({ response });
+      catch (error) {
+        if (error.response) {
+          const { status, data } = error.response;
+
+          if (status === 404) {
+            toast.error("User not found.");
+          } else if (status === 401) {
+            toast.error("Incorrect password.");
+          } else {
+            toast.error(data.message || "Login failed. Please try again.");
+          }
+        }
+      }
     }
   }
 
-  const handleSignup = async () => {
-    if (validateSignup()) {
-      const response = await apiClient.post(SIGNUP_ROUTE, {
-        email,
-        password,
-      },
-        { withCredentials: true }
-      );
-      if (response.status === 201) {
-        setUserInfo(response.data.user)
-        navigate("/profile");
-      }
-      console.log({ response })
+  const handleSendOtp = async () => {
+    if (!email.length || !isEmail(email)) {
+      toast.error("Enter a valid email to send OTP.");
+      return;
     }
-  }
+    try {
+      const response = await apiClient.post(GENERATE_OTP, { email });
+      if (response.status === 200) {
+        toast.success("OTP sent successfully.");
+        setIsOtpSent(true);
+      }
+    } catch (error) {
+      toast.error("Failed to send OTP. Please try again.");
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp.length) {
+      toast.error("Enter the OTP.");
+      return;
+    }
+    try {
+      const response = await apiClient.post(VERIFY_OTP, { email, otp });
+      if (response.status === 200) {
+        toast.success("OTP verified successfully.");
+        setIsOtpVerified(true);
+      }
+    } catch (error) {
+      toast.error("Invalid or expired OTP. Please try again.");
+    }
+  };
+
+  const handleSignup = async () => {
+    if (!isOtpVerified) {
+      toast.error("Please verify the OTP before signing up.");
+      return;
+    }
+    if (validateSignup()) {
+      try {
+        const response = await apiClient.post(SIGNUP_ROUTE, {
+          email,
+          password,
+        },
+        { withCredentials: true });
+        if (response.status === 201) {
+          setUserInfo(response.data.user);
+          navigate("/profile");
+        }
+      } catch (error) {
+        if (error.response) {
+          const { status, data } = error.response;
+          if (status === 403) {
+            toast.error("User already exists.");
+          } else {
+            toast.error(data.message || "Signup failed. Please try again.");
+          }
+        }
+      }
+    }
+  };
+
   return (
     <div className="h-[100vh] w-[100vw] flex items-center justify-center">
       <div className="h-[80vh] bg-white border-2 border-white text-opacity-90 shadow-2xl w-[80vw] md:w-[90vw] lg:w-[70vw] xl:w-[60vw] rounded-3xl grid xl:grid-cols-2">
@@ -139,11 +204,23 @@ function Auth() {
                   className="rounded-full p-6"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)} />
-                <Input placeholder="confirmPassword"
+                <Input placeholder="Confirm Password"
                   type="password"
                   className="rounded-full p-6"
                   value={confirmPassword}
                   onChange={(e) => setconfirmPassword(e.target.value)} />
+                {isOtpSent && (
+                  <Input placeholder="Enter OTP"
+                    type="text"
+                    className="rounded-full p-6"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)} />
+                )}
+                {!isOtpSent ? (
+                  <Button className="rounded-full p-6" onClick={handleSendOtp}>Send OTP</Button>
+                ) : (
+                  <Button className="rounded-full p-6" onClick={handleVerifyOtp}>Verify OTP</Button>
+                )}
                 <Button className="rounded-full p-6" onClick={handleSignup}>Signup</Button>
               </TabsContent>
             </Tabs>

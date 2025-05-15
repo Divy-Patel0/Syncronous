@@ -44,7 +44,7 @@ const setupSocket = (server) =>{
 
     const sendChannelMessage = async (message) =>
     {
-        const { channelId, sender, content, messageType, fileUrl } = message;
+        const { channelId, sender, content, messageType, fileUrl, originalName } = message;
 
         // Create and save the message
         const createdMessage = await Message.create({
@@ -54,6 +54,7 @@ const setupSocket = (server) =>{
           messageType,
           timestamp: new Date(),
           fileUrl,
+          originalName,
         });
     
         const messageData = await Message.findById(createdMessage._id)

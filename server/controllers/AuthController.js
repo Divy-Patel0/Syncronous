@@ -1,7 +1,20 @@
 import jwt from "jsonwebtoken";
 import User from "../models/UserModel.js";
 import { compare } from "bcrypt";
-import {renameSync, unlinkSync} from "fs";
+import fs from "fs";
+import path from "path";
+import cloudinary from "../config/cloudinaryConfig.js";
+import crypto from "crypto";
+import nodemailer from 'nodemailer';
+
+// Configure Nodemailer transporter
+const transporter = nodemailer.createTransport({
+    service: 'gmail', // Use your email service provider
+    auth: {
+        user: process.env.EMAIL_USER, // Your email address
+        pass: process.env.EMAIL_PASS, // Your email password or app-specific password
+    },
+});
 
 const maxAge = 3 * 24 * 60 * 60 * 1000;
 
@@ -14,6 +27,10 @@ export const signup = async (request, response, next) => {
         const { email, password } = request.body;
         if (!email || !password) {
             return response.status(400).send("Email and Password is required");
+        }
+        const userfind = await User.findOne({ email });
+        if(userfind){
+            return response.status(403).send("Email and Password is required");
         }
         const user = await User.create({ email, password });
         response.cookie("jwt", createToken(email, user.id), {
@@ -46,7 +63,7 @@ export const login = async (request, response, next) => {
         }
         const auth = await compare(password, user.password);
         if (!auth) {
-            return response.status(400).send("Password is incorrect")
+            return response.status(401).send("Password is incorrect")
         }
         response.cookie("jwt", createToken(email, user.id), {
             maxAge,
@@ -128,11 +145,32 @@ export const addProfileImage = async (request, response, next) => {
         if(!request.file){
             return response.status(400).send("File is required.");
         }
-        const date = Date.now();
-        let fileName = "uploads/profiles/" +date + request.file.originalname;
-        renameSync(request.file.path,fileName);
 
-        const updatedUser = await User.findByIdAndUpdate(request.userId,{image:fileName},{new:true, runValidators:true});
+        function generatePublicId(originalname) {
+              const timestamp = Date.now();
+              const name = path.parse(originalname).name;
+              return `user_uploads/${name}-${timestamp}`;
+            }
+            // // Create directory if it doesn't exist
+            // mkdirSync(fileDir, { recursive: true });
+            
+            // renameSync(request.file.path, fileName);
+            
+            const filePath = request.file.path;
+            // const fileExt = path.extname(request.file.originalname).slice(1)
+            const publicId = generatePublicId(request.file.originalname);
+            const result = await cloudinary.uploader.upload(filePath, {
+              resource_type: 'auto',
+              public_id: publicId,
+            //   format: fileExt,
+            });
+            console.log("file uploaded", result.url,result.format)
+            fs.unlinkSync(filePath);
+        // const date = Date.now();
+        // let fileName = "uploads/profiles/" +date + request.file.originalname;
+        // renameSync(request.file.path,fileName);
+
+        const updatedUser = await User.findByIdAndUpdate(request.userId,{image:result.url},{new:true, runValidators:true});
 
         return response.status(200).json({
             
@@ -154,9 +192,9 @@ export const removeProfileImage = async (request, response, next) => {
             return response.status(404).send("User not found.")
         }
 
-        if(user.image){
-            unlinkSync(user.image);
-        }
+        // if(user.image){
+        //     unlinkSync(user.image);
+        // }
 
         user.image = null;
         await user.save();
@@ -179,4 +217,56 @@ export const logout = async (request, response, next) => {
         console.log({ error });
         return response.status(500).send("Internal Server error");
     }
+};
+
+const otpStore = {}; // Temporary in-memory store for OTPs
+
+// Function to generate OTP
+export const generateOtp = async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const existingOtp = otpStore[email];
+    if (existingOtp && existingOtp.expiresAt > Date.now()) {
+        return res.status(429).json({ message: 'OTP already sent. Please wait for it to expire before requesting a new one.' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[email] = { otp, expiresAt: Date.now() + 1 * 60 * 1000 }; // OTP valid for 1 minute
+
+    // Send OTP via email
+    try {
+        await transporter.sendMail({
+            from: `Your Organization <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: 'Your OTP Code',
+            text: `Your OTP code is ${otp}. It is valid for 1 minute.\n\nThank you for using our service.\n\nBest regards,\nsyncronus`,
+        });
+        res.status(200).json({ message: 'OTP sent successfully to your email.' });
+    } catch (error) {
+        console.error('Error sending email:', error);
+        res.status(500).json({ message: 'Failed to send OTP. Please try again.' });
+    }
+};
+
+// Function to verify OTP
+export const verifyOtp = (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+        return res.status(400).json({ message: 'Email and OTP are required' });
+    }
+
+    const storedOtp = otpStore[email];
+    if (!storedOtp) {
+        return res.status(400).json({ message: 'OTP not found or expired' });
+    }
+
+    if (storedOtp.otp !== otp || storedOtp.expiresAt < Date.now()) {
+        return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    delete otpStore[email]; // OTP is valid, remove it from the store
+    res.status(200).json({ message: 'OTP verified successfully' });
 };

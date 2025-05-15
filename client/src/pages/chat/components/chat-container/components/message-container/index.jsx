@@ -97,10 +97,10 @@ function MessageContainer() {
     });
   };
 
-  const downloadFile = async (url) => {
+  const downloadFile = async (url,originalName) => {
     setIsDownloading(true);
     setFileDownloadProgress(0);
-    const response = await apiClient.get(`${HOST}/${url}`, {
+    const response = await apiClient.get(`${url}`, {
       responseType: "blob",
       onDownloadProgress: (progressEvent) => {
         const { loaded, total } = progressEvent;
@@ -149,8 +149,8 @@ function MessageContainer() {
               }}
             >
               <img
-                src={`${HOST}/${message.fileUrl}`}
-                alt={`${HOST}/${message.fileUrl}`}
+                src={`${message.fileUrl}`}
+                alt={`${message.fileUrl}`}
                 height={300}
                 width={300}
               />
@@ -211,7 +211,7 @@ function MessageContainer() {
                 }}
               >
                 <img
-                  src={`${HOST}/${message.fileUrl}`}
+                  src={`${message.fileUrl}`}
                   alt=""
                   height={300}
                   width={300}
@@ -225,7 +225,7 @@ function MessageContainer() {
                 <span>{message.fileUrl.split("/").pop()}</span>
                 <span
                   className="bg-black/20 p-3 text-2xl rounded-full hover:bg-black/50 cursor-pointer transition-all duration-300"
-                  onClick={() => downloadFile(message.fileUrl)}
+                  onClick={() => downloadFile(message.fileUrl, message.originalName)}
                 >
                   <IoMdArrowRoundDown />
                 </span>
@@ -276,7 +276,7 @@ function MessageContainer() {
         showImage && (
           <div className="fixed z-[1000] top-0 left-0 h-[100vh] w-[100vw] flex items-center justify-center backdrop-blur-lg flex-col">
             <div>
-              <img src={`${HOST}/${imageURL}`} alt="" className="h-[80vh] w-full bg-cover" />
+              <img src={`${imageURL}`} alt="" className="h-[80vh] w-full bg-cover" />
             </div>
             <div className="flex gap-5 mt-5 fixed top-0">
               <button className="p-3 bg-black/20 text-2xl rounded-full hover:bg-black/30 cursor-pointer transition-all duration-300"

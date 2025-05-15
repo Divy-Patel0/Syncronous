@@ -99,6 +99,7 @@ const MessageBar = () => {
               messageType: "file",
               // audioUrl: undefined,
               fileUrl: response.data.filePath,
+              originalName : response.data.originalName,
             });
           }
            else if (selectedChatType === "channel") {
@@ -108,6 +109,7 @@ const MessageBar = () => {
               messageType: "file",
               // audioUrl: undefined,
               fileUrl: response.data.filePath,
+              originalName : response.data.originalName,
               channelId: selectedChatData._id,
             });
           }
