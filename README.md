@@ -122,5 +122,5 @@ Licensed under the [MIT License](LICENSE).
 
 ## 🔗 Contact
 
-- GitHub: [yourusername](https://github.com/yourusername)
-- Email: your.email@example.com
+- GitHub: Divy-Patel0(https://github.com/Divy-Patel0)
+- Email: divy4it@gmail.com
